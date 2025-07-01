@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klasifikasi Kualitas Biji Kopi</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: #007BFF;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #007BFF;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 20px;
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+        }
+
+        #preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            margin-top: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: none; /* Hidden by default */
+        }
+
+        #result {
+            margin-top: 25px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #28a745; /* Default color for good prediction */
+        }
+
+        .loading {
+            font-size: 18px;
+            color: #555;
+            margin-top: 20px;
+            display: none; /* Hidden by default */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Klasifikasi Kualitas Biji Kopi</h1>
+    <p>Unggah gambar biji kopi (bagus atau rusak) untuk mendapatkan klasifikasi.</p>
+
+    <form id="upload-form" enctype="multipart/form-data">
+        <div class="upload-area" onclick="document.getElementById('file-input').click();">
+            <p>Klik di sini atau seret dan lepas gambar</p>
+            <input type="file" id="file-input" name="file" accept="image/*">
+        </div>
+        <button type="submit" class="button" id="submit-button">Klasifikasi</button>
+    </form>
+
+    <img id="preview-image" src="#" alt="Image Preview">
+    <div class="loading" id="loading-text">Memproses...</div>
+    <p id="result"></p>
+</div>
+
+<script>
+    // --- GANTI URL INI DENGAN URL NGROK YANG AKTIF DARI GOOGLE COLAB ANDA ---
+    const api_url = 'http://127.0.0.1:5000/predict'; 
+    // Contoh: 'https://1a2b3c4d5e6f.ngrok.io/predict'
+
+    const form = document.getElementById('upload-form');
+    const fileInput = document.getElementById('file-input');
+    const previewImage = document.getElementById('preview-image');
+    const resultElement = document.getElementById('result');
+    const loadingText = document.getElementById('loading-text');
+    const submitButton = document.getElementById('submit-button');
+
+    // Fungsi untuk menampilkan preview gambar
+    fileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImage.src = e.target.result;
+                previewImage.style.display = 'block';
+                resultElement.textContent = ''; // Hapus hasil sebelumnya
+            }
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // Handle form submission
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault(); // Mencegah form untuk refresh halaman
+        
+        const file = fileInput.files[0];
+        if (!file) {
+            resultElement.textContent = 'Silakan pilih gambar terlebih dahulu.';
+            resultElement.style.color = '#dc3545'; // Merah untuk error
+            return;
+        }
+
+        // Tampilkan indikator loading dan nonaktifkan tombol
+        loadingText.style.display = 'block';
+        resultElement.textContent = '';
+        submitButton.disabled = true;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(api_url, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            // Sembunyikan loading
+            loadingText.style.display = 'none';
+            submitButton.disabled = false;
+
+            if (response.ok) {
+                // Tampilkan hasil prediksi
+                resultElement.textContent = `Prediksi: ${data.prediction} (Kepercayaan: ${Math.round(data.confidence * 100)}%)`;
+                
+                // Ubah warna hasil berdasarkan prediksi
+                if (data.prediction.toLowerCase().includes('bagus')) {
+                    resultElement.style.color = '#28a745'; // Hijau untuk bagus
+                } else if (data.prediction.toLowerCase().includes('rusak')) {
+                    resultElement.style.color = '#dc3545'; // Merah untuk rusak
+                } else {
+                    resultElement.style.color = '#555'; // Abu-abu untuk hasil lain
+                }
+
+            } else {
+                // Tangani error dari API
+                resultElement.textContent = `Error dari API: ${data.error || 'Terjadi kesalahan.'}`;
+                resultElement.style.color = '#dc3545';
+            }
+        } catch (error) {
+            // Tangani error jaringan atau fetch
+            console.error('Fetch error:', error);
+            loadingText.style.display = 'none';
+            submitButton.disabled = false;
+            resultElement.textContent = 'Koneksi gagal. Pastikan API Flask berjalan dan URL Ngrok benar.';
+            resultElement.style.color = '#dc3545';
+        }
+    });
+</script>
+
+</body>
+</html>
